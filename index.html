@@ -1248,23 +1248,29 @@ async function renderFicheRecrue(rid){
 }
 
 async function toggleCheck(rid,phase,item){
- const{data:existing}=await sb.from('parrainage_checkpoints').select('*').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle().catch(()=>({data:null}));
- if(existing){
- await sb.from('parrainage_checkpoints').update({statut:!existing.statut}).eq('id',existing.id);
- } else {
- await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,statut:true});
- }
- await renderFicheRecrue(rid);
+  try{
+    const{data:existing}=await sb.from('parrainage_checkpoints').select('*').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle();
+    if(existing){
+      await sb.from('parrainage_checkpoints').update({statut:!existing.statut}).eq('id',existing.id);
+    } else {
+      await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,statut:true});
+    }
+    await renderFicheRecrue(rid);
+  }catch(e){console.error('toggleCheck:',e);}
 }
 async function updateCheckDate(rid,phase,item,date){
- const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle().catch(()=>({data:null}));
- if(existing){await sb.from('parrainage_checkpoints').update({date_reelle:date||null}).eq('id',existing.id);}
- else{await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,date_reelle:date||null,statut:false});}
+  try{
+    const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle();
+    if(existing){await sb.from('parrainage_checkpoints').update({date_reelle:date||null}).eq('id',existing.id);}
+    else{await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,date_reelle:date||null,statut:false});}
+  }catch(e){console.error('updateCheckDate:',e);}
 }
 async function updateCheckVisa(rid,phase,item,visa){
- const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle().catch(()=>({data:null}));
- if(existing){await sb.from('parrainage_checkpoints').update({visa}).eq('id',existing.id);}
- else{await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,visa,statut:false});}
+  try{
+    const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle();
+    if(existing){await sb.from('parrainage_checkpoints').update({visa}).eq('id',existing.id);}
+    else{await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,visa,statut:false});}
+  }catch(e){console.error('updateCheckVisa:',e);}
 }
 async function setAvisFinal(rid,avis){
  await sb.from('recrues').update({avis_final:avis}).eq('id',rid);
@@ -1822,7 +1828,11 @@ async function saveEditUser(){
     // Changer le mot de passe si renseigné (nécessite Supabase Admin)
     if(pass){
       if(pass.length<6){errEl.textContent='Mot de passe trop court (6 car. min.)';errEl.style.display='block';return;}
-      const{error}=await sb.auth.admin.updateUserById(id,{password:pass}).catch(()=>({error:{message:'Impossible de changer le mot de passe via le client. Utilisez Supabase Dashboard.'}}));
+      const{error}=await (async()=>{
+      // Note: changement mot de passe admin nécessite service_role key
+      // Demander à l'utilisateur de le faire lui-même dans Supabase Dashboard
+      return {error:{message:'Pour changer le mot de passe, utilisez Supabase Dashboard > Authentication > Users.'}};
+    })().catch(()=>({error:{message:'Impossible de changer le mot de passe via le client. Utilisez Supabase Dashboard.'}}));
       if(error){errEl.textContent=error.message;errEl.style.display='block';}
     }
     closeM('m-edit-user');
