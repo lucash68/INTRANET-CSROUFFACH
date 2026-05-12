@@ -534,6 +534,31 @@ function toggleISO8(btn){
 }
 
 
+var PERM_DEFAULT={
+  dashboard:{admin:'rw',chef_equipe:'rw',spv:'rw'},
+  organigramme:{admin:'rw',chef_equipe:'r',spv:'r'},
+  disponibilites:{admin:'rw',chef_equipe:'rw',spv:'rw'},
+  planning:{admin:'rw',chef_equipe:'rw',spv:'r'},
+  remplacements:{admin:'rw',chef_equipe:'rw',spv:'r'},
+  equipes:{admin:'rw',chef_equipe:'r',spv:'r'},
+  personnel:{admin:'rw',chef_equipe:'r',spv:'none'},
+  entretiens:{admin:'rw',chef_equipe:'rw',spv:'none'},
+  parrainage:{admin:'rw',chef_equipe:'rw',spv:'none'},
+  materiel:{admin:'rw',chef_equipe:'r',spv:'r'},
+  checklists:{admin:'rw',chef_equipe:'rw',spv:'rw'},
+  formations:{admin:'rw',chef_equipe:'r',spv:'r'},
+  manouvres:{admin:'rw',chef_equipe:'rw',spv:'r'},
+  messages:{admin:'rw',chef_equipe:'rw',spv:'rw'},
+  documents:{admin:'rw',chef_equipe:'r',spv:'r'},
+  carte:{admin:'rw',chef_equipe:'r',spv:'r'},
+  webcis:{admin:'rw',chef_equipe:'rw',spv:'rw'},
+  stocks:{admin:'rw',chef_equipe:'r',spv:'r'},
+  vgp:{admin:'rw',chef_equipe:'r',spv:'none'},
+  journal:{admin:'rw',chef_equipe:'rw',spv:'r'},
+  sondages:{admin:'rw',chef_equipe:'rw',spv:'rw'},
+  amicale:{admin:'rw',chef_equipe:'r',spv:'r'},
+  admin:{admin:'rw',chef_equipe:'none',spv:'none'},
+};
 var RENDERERS={
   dashboard:renderDash,organigramme:renderOrg,disponibilites:renderDispos,
   planning:renderPlanning,remplacements:renderRemplacements,equipes:renderEquipes,
@@ -655,7 +680,7 @@ async function renderDispos(){
  document.getElementById('poj-alerts').innerHTML=alerts.length?`<div class="poj-alert">⚠️<div><b>Alertes POJ :</b><br>${alerts.join('<br>')}</div></div>`:'';
 }
 async function toggleDispo(pid,date){
- const{data:existing}=await sb.from('disponibilites').select('*').eq('personnel_id',pid).eq('date',date).single();
+ const{data:existing}=await sb.from('disponibilites').select('*').eq('personnel_id',pid).eq('date',date).maybeSingle();
  const cur=existing?.statut||'X';
  const next=DISPO_STATES[(DISPO_STATES.indexOf(cur)+1)%DISPO_STATES.length];
  await sb.from('disponibilites').upsert({personnel_id:pid,date,statut:next,updated_at:new Date().toISOString()},{onConflict:'personnel_id,date'});
@@ -1176,7 +1201,7 @@ async function renderFicheRecrue(rid){
 }
 
 async function toggleCheck(rid,phase,item){
- const{data:existing}=await sb.from('parrainage_checkpoints').select('*').eq('recrue_id',rid).eq('phase',phase).eq('item',item).single().catch(()=>({data:null}));
+ const{data:existing}=await sb.from('parrainage_checkpoints').select('*').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle().catch(()=>({data:null}));
  if(existing){
  await sb.from('parrainage_checkpoints').update({statut:!existing.statut}).eq('id',existing.id);
  } else {
@@ -1185,12 +1210,12 @@ async function toggleCheck(rid,phase,item){
  await renderFicheRecrue(rid);
 }
 async function updateCheckDate(rid,phase,item,date){
- const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).single().catch(()=>({data:null}));
+ const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle().catch(()=>({data:null}));
  if(existing){await sb.from('parrainage_checkpoints').update({date_reelle:date||null}).eq('id',existing.id);}
  else{await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,date_reelle:date||null,statut:false});}
 }
 async function updateCheckVisa(rid,phase,item,visa){
- const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).single().catch(()=>({data:null}));
+ const{data:existing}=await sb.from('parrainage_checkpoints').select('id').eq('recrue_id',rid).eq('phase',phase).eq('item',item).maybeSingle().catch(()=>({data:null}));
  if(existing){await sb.from('parrainage_checkpoints').update({visa}).eq('id',existing.id);}
  else{await sb.from('parrainage_checkpoints').insert({recrue_id:rid,phase,item,visa,statut:false});}
 }
@@ -2344,7 +2369,7 @@ async function delSondage(id){
  renderSondages();
 }
 async function voter(sondageId,option){
- const{data:s}=await sb.from('sondages').select('votes').eq('id',sondageId).single();
+ const{data:s}=await sb.from('sondages').select('votes').eq('id',sondageId).maybeSingle();
  const votes={...(s?.votes||{})};
  if(!votes._voters)votes._voters={};
  if(votes._voters[sess?.id])return alert('Vous avez deja vote.');
@@ -2387,3 +2412,4 @@ async function loadDashAlertes(){
 </script>
 </body>
 </html>
+<div class="card" style="margin-top:12px"><div class="card-t"><span>🔁 Gardes partagées</span><span class="bs info" id="cnt-garde">0</span></div><div id="list-garde"><div class="loading">...</div></div></div>
