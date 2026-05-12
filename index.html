@@ -939,14 +939,119 @@ async function saveRemp(){
 }
 
 async function renderEquipes(){
- const personnel=await load('personnel','nom');
- const dm={Disponible:'ok',Indisponible:'ko','En formation':'info','Congé':'warn'};
- document.getElementById('eq-grid').innerHTML=['EQ1','EQ2','EQ3','EQ4'].map(eq=>{
- const ce=personnel.find(p=>p.equipe===eq&&p.role_pole==="Chef d'Équipe");
- const membres=personnel.filter(p=>p.equipe===eq);
- const dispo=membres.filter(p=>p.disponibilite==='Disponible').length;
- return`<div class="eq-card"><div class="eq-header"><div><div class="eq-title">${eq} <span class="bs ${dispo>=3?'ok':'warn'}">${dispo}/${membres.length}</span></div><div class="eq-chief">CE : ${ce?ce.prenom+' '+ce.nom:'<span style="color:#DC2626">À définir</span>'}</div></div></div><div class="eq-body">${membres.map(m=>`<div class="eq-member"><div><div style="font-weight:500;font-size:13px">${m.prenom} ${m.nom}</div><div style="font-size:11.5px;color:#6B7280">${m.grade} - ${m.role_pole||m.specialite}</div></div><span class="bs ${dm[m.disponibilite]||'gray'}">${m.disponibilite}</span></div>`).join('')||'<div style="font-size:13px;color:#9CA3AF;padding:8px 0">Aucun membre</div>'}</div></div>`;
- }).join('');
+  const personnel=await load('personnel','nom');
+  const equipes=['EQ1','EQ2','EQ3','EQ4'];
+  const dm={Disponible:'ok',Indisponible:'ko','En formation':'info','Congé':'warn'};
+  const EQ_COLORS={EQ1:'#FEE2E2',EQ2:'#DBEAFE',EQ3:'#D1FAE5',EQ4:'#EDE9FE'};
+  const EQ_DARK={EQ1:'#DC2626',EQ2:'#2563EB',EQ3:'#059669',EQ4:'#7C3AED'};
+  const EQ_BORDER={EQ1:'#FECACA',EQ2:'#BFDBFE',EQ3:'#A7F3D0',EQ4:'#C4B5FD'};
+
+  // Personnels sans équipe
+  const sansEq=personnel.filter(p=>!p.equipe||!equipes.includes(p.equipe));
+
+  let html='';
+
+  // Barre "Hors équipes"
+  if(sansEq.length){
+    html+='<div class="card" style="margin-bottom:14px;border:2px dashed #E5E7EB">';
+    html+='<div class="card-t" style="color:#6B7280">👤 Hors équipes / Non affectés ('+sansEq.length+')</div>';
+    html+='<div class="eq-drop-zone" data-eq="" style="display:flex;flex-wrap:wrap;gap:6px;min-height:44px;padding:6px;border-radius:8px;background:#F9FAFB;transition:background .15s">';
+    sansEq.forEach(p=>{
+      html+=buildCard(p,EQ_COLORS,'',EQ_DARK,'',dm);
+    });
+    html+='</div></div>';
+  }
+
+  // Grille 4 équipes
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">';
+  equipes.forEach(eq=>{
+    const membres=personnel.filter(p=>p.equipe===eq);
+    const ce=membres.find(p=>p.role_pole&&p.role_pole.includes("Chef d'Équipe"));
+    const dispo=membres.filter(p=>p.disponibilite==='Disponible').length;
+    const bg=EQ_COLORS[eq]||'#F3F4F6';
+    const dk=EQ_DARK[eq]||'#374151';
+    const br=EQ_BORDER[eq]||'#E5E7EB';
+    html+='<div class="eq-card" style="border:2px solid '+br+'">';
+    html+='<div class="eq-header" style="background:'+bg+';border-bottom:2px solid '+br+'">';
+    html+='<div><div class="eq-title" style="color:'+dk+'">'+eq+' <span class="bs '+(dispo>=3?'ok':'warn')+'">'+dispo+'/'+membres.length+'</span></div>';
+    html+='<div class="eq-chief">CE : '+(ce?ce.prenom+' '+ce.nom:'— Non désigné')+'</div></div>';
+    html+='<div style="font-size:11px;color:'+dk+';opacity:.6">Glisser pour ajouter</div>';
+    html+='</div>';
+    html+='<div class="eq-drop-zone" data-eq="'+eq+'" ';
+    html+='style="padding:10px;min-height:80px;display:flex;flex-direction:column;gap:5px;transition:background .15s">';
+    membres.forEach(p=>{
+      html+=buildCard(p,EQ_COLORS,eq,EQ_DARK,dk,dm);
+    });
+    html+='</div></div>';
+  });
+  html+='</div>';
+
+  document.getElementById('eq-grid').innerHTML=html;
+
+  // Initialiser le drag & drop
+  initEqDragDrop();
+}
+
+function buildCard(p,EQ_COLORS,eq,EQ_DARK,dk,dm){
+  const isCE=p.role_pole&&p.role_pole.includes("Chef d'Équipe");
+  const bg=eq?EQ_COLORS[eq]:'#F3F4F6';
+  const color=eq?EQ_DARK[eq]:'#374151';
+  return '<div class="eq-spv-card" draggable="true" data-pid="'+p.id+'" data-nom="'+p.prenom+' '+p.nom+'" '+
+    'style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:white;border:1px solid #E5E7EB;border-radius:8px;cursor:grab;user-select:none;transition:box-shadow .15s;'+(isCE?'border-left:3px solid '+color+';':'')+'">'+
+    '<div style="width:28px;height:28px;border-radius:50%;background:'+bg+';color:'+color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+
+    (p.prenom?p.prenom[0]:'?')+(p.nom?p.nom[0]:'?')+'</div>'+
+    '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:'+(isCE?700:500)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.prenom+' '+p.nom+'</div>'+
+    '<div style="font-size:10.5px;color:#9CA3AF">'+(p.grade||'SPV')+(p.specialite?' · '+p.specialite:'')+(isCE?' 👑':'')+'</div></div>'+
+    '<span class="bs '+(dm[p.disponibilite]||'gray')+'" style="font-size:10px;flex-shrink:0">'+(p.disponibilite||'?').substring(0,3)+'</span>'+
+    '</div>';
+}
+
+function initEqDragDrop(){
+  let dragPid=null, dragFrom=null;
+
+  // Cartes draggables
+  document.querySelectorAll('.eq-spv-card').forEach(card=>{
+    card.addEventListener('dragstart',e=>{
+      dragPid=card.getAttribute('data-pid');
+      dragFrom=card.closest('.eq-drop-zone')?.getAttribute('data-eq')||'';
+      card.style.opacity='0.5';
+      e.dataTransfer.effectAllowed='move';
+    });
+    card.addEventListener('dragend',()=>{
+      card.style.opacity='1';
+      document.querySelectorAll('.eq-drop-zone').forEach(z=>z.style.background='');
+    });
+  });
+
+  // Zones de dépôt
+  document.querySelectorAll('.eq-drop-zone').forEach(zone=>{
+    zone.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      zone.style.background='#EFF6FF';
+      zone.style.outline='2px dashed #2563EB';
+    });
+    zone.addEventListener('dragleave',()=>{
+      zone.style.background='';
+      zone.style.outline='';
+    });
+    zone.addEventListener('drop',async e=>{
+      e.preventDefault();
+      zone.style.background='';
+      zone.style.outline='';
+      const toEq=zone.getAttribute('data-eq')||'';
+      if(!dragPid||toEq===dragFrom)return;
+      // Confirmation si changement d'équipe
+      const card=document.querySelector('.eq-spv-card[data-pid="'+dragPid+'"]');
+      const nom=card?.getAttribute('data-nom')||'ce SPV';
+      const dest=toEq||'hors équipes';
+      if(!confirm('Affecter '+nom+' en '+dest+' ?'))return;
+      // Sauvegarder
+      await sb.from('personnel').update({equipe:toEq||null}).eq('id',parseInt(dragPid));
+      inv('personnel');
+      await renderEquipes();
+    });
+  });
 }
 
 let _pFilter='',_pEq='';
