@@ -427,6 +427,113 @@ function canWrite(page){
  return perm==='rw';
 }
 
+function adminTab(el,id){
+  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.admin-section').forEach(s=>s.style.display='none');
+  el.classList.add('active');
+  const sec=document.getElementById(id);
+  if(sec)sec.style.display='block';
+}
+
+async function saveCfg(){
+  const url=g('theme-url')||'';
+  const color=g('theme-color')||'#DC2626';
+  await sb.from('config').update({webcis_url:url,theme_color:color}).eq('id',1);
+  inv('config');
+  document.documentElement.style.setProperty('--pc',color);
+  alert('Configuration enregistree !');
+}
+
+async function loadWebcis(){
+  const url=g('theme-url')||g('webcis-url-input')||'';
+  if(!url)return alert("Entrez d'abord l'URL WebCIS.");
+  await sb.from('config').update({webcis_url:url}).eq('id',1);
+  inv('config');
+  const frame=document.getElementById('webcis-frame');
+  if(frame)frame.src=url;
+  const link=document.getElementById('webcis-ext-link');
+  if(link)link.href=url;
+  nav(document.querySelector('.nav-item[data-page="webcis"]'),'webcis');
+}
+
+
+// ═══ ADMIN ═══
+async function renderAdmin(){
+  const cfg=D.config||await loadTheme();
+  renderPermGrid(cfg);
+  renderUsers();
+  // Charger les valeurs de config dans le formulaire
+  const tu=document.getElementById('theme-url');if(tu)tu.value=cfg.webcis_url||'';
+  const tc=document.getElementById('theme-color');if(tc)tc.value=cfg.theme_color||'#DC2626';
+}
+
+// ═══ CARTE : ERP + ISOCHRONE ═══
+let erpLayer=null,erpVisible=false;
+async function toggleERP(btn){
+  erpVisible=!erpVisible;
+  if(btn){
+    btn.style.background=erpVisible?'#EDE9FE':'';
+    btn.style.borderColor=erpVisible?'#7C3AED':'';
+    btn.style.color=erpVisible?'#6D28D9':'';
+    btn.textContent=erpVisible?'✕ Masquer ERP':'🏢 ERP secteur';
+  }
+  const l1=document.getElementById('legend-erp');
+  const l2=document.getElementById('legend-erp2');
+  if(l1)l1.style.display=erpVisible?'':'none';
+  if(l2)l2.style.display=erpVisible?'':'none';
+  if(!leafletMap){await renderCarte();await new Promise(res=>setTimeout(res,600));}
+  if(!leafletMap)return;
+  if(erpVisible){if(!erpLayer)erpLayer=buildERPLayer();erpLayer.addTo(leafletMap);}
+  else{if(erpLayer)leafletMap.removeLayer(erpLayer);}
+}
+function buildERPLayer(){
+  const group=L.layerGroup();
+  const catColors={1:'#DC2626',2:'#EA580C',3:'#7C3AED',4:'#6B7280',5:'#6B7280'};
+  const COMM_COORDS={
+    '68287':[47.9556,7.2998],'68255':[47.971,7.293],
+    '68111':[47.965,7.265],'68123':[47.988,7.271],
+    '68116':[47.928,7.276],'68228':[47.920,7.285],
+    '68234':[47.909,7.300],'68241':[47.918,7.304],
+    '68242':[47.925,7.315],'68037':[47.900,7.291],
+  };
+  Object.entries(ERP_SECTEUR).forEach(function([code,erps]){
+    if(!erps.length)return;
+    const coords=COMM_COORDS[code];if(!coords)return;
+    const minCat=Math.min.apply(null,erps.map(function(e){return e.cat;}));
+    const color=catColors[minCat]||'#6B7280';
+    const icon=L.divIcon({
+      html:'<div style="background:'+color+';color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+erps.length+'</div>',
+      className:'',iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-16]
+    });
+    const sorted=[...erps].sort(function(a,b){return a.cat-b.cat;});
+    let pop='<div style="max-height:300px;overflow-y:auto;min-width:240px">';
+    pop+='<div style="font-weight:700;font-size:13px;color:#374151;margin-bottom:8px;border-bottom:1px solid #E5E7EB;padding-bottom:5px">🏢 '+erps.length+' ERP</div>';
+    sorted.forEach(function(e){
+      const c=catColors[e.cat]||'#6B7280';
+      pop+='<div style="display:flex;gap:7px;align-items:flex-start;padding:4px 0;border-bottom:1px solid #F9FAFB">';
+      pop+='<span style="background:'+c+';color:white;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:700;flex-shrink:0">Cat.'+e.cat+'</span>';
+      pop+='<div><div style="font-size:12px;font-weight:600">'+e.nom+'</div>';
+      pop+='<div style="font-size:11px;color:#6B7280">'+e.adr+'</div></div></div>';
+    });
+    pop+='</div>';
+    L.marker(coords,{icon}).addTo(group).bindPopup(pop,{maxWidth:280});
+  });
+  return group;
+}
+function toggleISO8(btn){
+  const panel=document.getElementById('iso8-panel');
+  if(!panel)return;
+  const visible=panel.style.display!=='none';
+  panel.style.display=visible?'none':'block';
+  if(btn){
+    btn.style.background=visible?'':'#FEF3C7';
+    btn.style.borderColor=visible?'':'#D97706';
+    btn.style.color=visible?'':'#92400E';
+    btn.textContent=visible?'⏱️ Isochrone 8 min':'✕ Masquer isochrone';
+  }
+}
+
+
 const RENDERERS={
   dashboard:renderDash,organigramme:renderOrg,disponibilites:renderDispos,
   planning:renderPlanning,remplacements:renderRemplacements,equipes:renderEquipes,
